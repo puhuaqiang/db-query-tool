@@ -1,0 +1,515 @@
+openapi: 3.0.3
+info:
+  title: 数据库查询工具 API
+  description: 数据库连接管理、SQL 查询和自然语言生成 SQL 的 RESTful API
+  version: 1.0.0
+  contact:
+    name: DB Query Tool
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: 本地开发服务器
+
+tags:
+  - name: databases
+    description: 数据库连接管理
+  - name: query
+    description: SQL 查询
+  - name: metadata
+    description: 元数据管理
+  - name: llm
+    description: LLM 配置
+
+paths:
+  /dbs:
+    get:
+      tags:
+        - databases
+      summary: 获取所有数据库连接
+      operationId: getDatabases
+      responses:
+        '200':
+          description: 成功返回数据库列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DatabaseConnection'
+
+  /dbs/{name}:
+    put:
+      tags:
+        - databases
+      summary: 添加或更新数据库连接
+      operationId: addDatabase
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddDatabaseRequest'
+      responses:
+        '200':
+          description: 成功添加/更新数据库连接
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseConnectionDetail'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags:
+        - databases
+      summary: 获取数据库详细信息（包括元数据）
+      operationId: getDatabase
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+      responses:
+        '200':
+          description: 成功返回数据库详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseConnectionDetail'
+        '404':
+          description: 数据库连接不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - databases
+      summary: 删除数据库连接
+      operationId: deleteDatabase
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+      responses:
+        '204':
+          description: 成功删除
+        '404':
+          description: 数据库连接不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /dbs/{name}/refresh:
+    post:
+      tags:
+        - metadata
+      summary: 刷新数据库元数据
+      operationId: refreshMetadata
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+      responses:
+        '200':
+          description: 成功刷新元数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseConnectionDetail'
+        '404':
+          description: 数据库连接不存在
+        '500':
+          description: 刷新失败
+
+  /dbs/{name}/tables/{tableName}/fields/{fieldName}:
+    patch:
+      tags:
+        - metadata
+      summary: 更新字段的中文备注
+      operationId: updateFieldChineseName
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+        - name: tableName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 表名
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 字段名
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFieldRequest'
+      responses:
+        '200':
+          description: 成功更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldMetadata'
+        '404':
+          description: 字段不存在
+
+  /dbs/{name}/query:
+    post:
+      tags:
+        - query
+      summary: 执行 SQL 查询
+      operationId: executeQuery
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResult'
+        '400':
+          description: SQL 语法错误或非 SELECT 语句
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 数据库连接不存在
+        '500':
+          description: 查询执行失败
+
+  /dbs/{name}/query/natural:
+    post:
+      tags:
+        - query
+      summary: 使用自然语言生成并执行 SQL
+      operationId: executeNaturalQuery
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NaturalQueryRequest'
+      responses:
+        '200':
+          description: 成功生成 SQL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NaturalQueryResult'
+        '400':
+          description: 生成失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 数据库连接不存在
+
+  /dbs/{name}/query/export:
+    post:
+      tags:
+        - query
+      summary: 导出查询结果
+      operationId: exportQueryResult
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据库连接名称
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, json]
+          description: 导出格式
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: 导出成功
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: 请求错误
+
+  /llm/models:
+    get:
+      tags:
+        - llm
+      summary: 获取可用的 LLM 模型列表
+      operationId: getLlmModels
+      responses:
+        '200':
+          description: 成功返回模型列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LlmModel'
+
+components:
+  schemas:
+    DatabaseConnection:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        dbType:
+          type: string
+          enum: [postgres, mysql]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - dbType
+        - createdAt
+        - updatedAt
+
+    DatabaseConnectionDetail:
+      allOf:
+        - $ref: '#/components/schemas/DatabaseConnection'
+        - type: object
+          properties:
+            tables:
+              type: array
+              items:
+                $ref: '#/components/schemas/TableMetadata'
+
+    AddDatabaseRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          description: 数据库连接字符串
+          example: "postgres://user:pass@localhost:5432/mydb"
+      required:
+        - url
+
+    TableMetadata:
+      type: object
+      properties:
+        id:
+          type: integer
+        tableName:
+          type: string
+        tableType:
+          type: string
+          enum: [TABLE, VIEW]
+        chineseName:
+          type: string
+          nullable: true
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldMetadata'
+      required:
+        - id
+        - tableName
+        - tableType
+        - fields
+
+    FieldMetadata:
+      type: object
+      properties:
+        id:
+          type: integer
+        fieldName:
+          type: string
+        dataType:
+          type: string
+        isNullable:
+          type: boolean
+        columnDefault:
+          type: string
+          nullable: true
+        maxLength:
+          type: integer
+          nullable: true
+        chineseName:
+          type: string
+          nullable: true
+      required:
+        - id
+        - fieldName
+        - dataType
+        - isNullable
+
+    UpdateFieldRequest:
+      type: object
+      properties:
+        chineseName:
+          type: string
+          description: 字段的中文备注
+      required:
+        - chineseName
+
+    QueryRequest:
+      type: object
+      properties:
+        sql:
+          type: string
+          description: SQL 查询语句
+          example: "SELECT * FROM users"
+      required:
+        - sql
+
+    NaturalQueryRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: 自然语言查询描述
+          example: "查询用户表的所有信息"
+        model:
+          type: string
+          description: LLM 模型
+          enum: [qwen-coder-plus, kimi-k2-thinking-turbo]
+          default: qwen-coder-plus
+      required:
+        - prompt
+
+    QueryResult:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/Column'
+        rows:
+          type: array
+          items:
+            type: array
+            items: {}
+        rowCount:
+          type: integer
+        executionTime:
+          type: number
+          description: 执行时间（毫秒）
+      required:
+        - columns
+        - rows
+        - rowCount
+        - executionTime
+
+    Column:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+      required:
+        - name
+        - type
+
+    NaturalQueryResult:
+      type: object
+      properties:
+        generatedSql:
+          type: string
+          description: 生成的 SQL 语句
+        result:
+          $ref: '#/components/schemas/QueryResult'
+      required:
+        - generatedSql
+
+    LlmModel:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+      required:
+        - id
+        - name
+        - provider
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        detail:
+          type: string
+          nullable: true
+      required:
+        - error
+        - message
